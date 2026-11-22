@@ -4,6 +4,7 @@ from pathlib import Path
 from pypdf import PdfReader
 from docx import Document
 import re
+import hmac
 
 st.set_page_config(
     page_title="MS AI",
@@ -13,6 +14,19 @@ st.set_page_config(
 
 KUTUBXONA = Path("materials")
 KUTUBXONA.mkdir(exist_ok=True)
+
+# Admin ma'lumotlarini xavfsiz Secrets bo'limidan olish
+try:
+    ADMIN_USERNAME = st.secrets["admin"]["username"]
+    ADMIN_PASSWORD = st.secrets["admin"]["password"]
+except Exception:
+    ADMIN_USERNAME = None
+    ADMIN_PASSWORD = None
+
+# Foydalanuvchi holatini saqlash
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
 
 def matnni_ol(fayl):
     natija = []
@@ -109,6 +123,44 @@ def javob_qidir(savol):
     ][:5]
 
 
+# ADMIN KIRISH TIZIMI
+st.sidebar.title("🔐 Hisob")
+
+if st.session_state.is_admin:
+    st.sidebar.success("Admin sifatida kirdingiz")
+
+    if st.sidebar.button("Hisobdan chiqish"):
+        st.session_state.is_admin = False
+        st.rerun()
+
+else:
+    with st.sidebar.form("admin_login"):
+        st.markdown("**Admin kirish**")
+
+        login = st.text_input("Login")
+        parol = st.text_input("Parol", type="password")
+
+        kirish = st.form_submit_button("Kirish")
+
+    if kirish:
+        if ADMIN_USERNAME is None or ADMIN_PASSWORD is None:
+            st.sidebar.error("Admin hisobi hali sozlanmagan.")
+        elif (
+            hmac.compare_digest(login, str(ADMIN_USERNAME))
+            and hmac.compare_digest(parol, str(ADMIN_PASSWORD))
+        ):
+            st.session_state.is_admin = True
+            st.rerun()
+        else:
+            st.sidebar.error("Login yoki parol noto‘g‘ri.")
+
+if st.session_state.is_admin:
+    st.sidebar.caption("Sizda administrator huquqi bor.")
+else:
+    st.sidebar.caption("Oddiy foydalanuvchi rejimi")
+
+
+# ASOSIY SAHIFA
 st.title("📚 MS AI")
 st.subheader("Metrologiya bo‘yicha shaxsiy bilimlar bazasi")
 st.divider()
@@ -129,28 +181,35 @@ if bolim == "Bosh sahifa":
         "ma'lumot qidiruvchi yordamchi."
     )
     st.info(
-        "Avval kitoblaringizni kutubxonaga yuklang, "
-        "keyin ular bo‘yicha savol bering."
+        "Kitoblar bazasidan foydalanib, "
+        "metrologiyaga oid savollaringizga javob qidiring."
     )
 
 elif bolim == "Mening kutubxonam":
     st.header("📚 Mening kutubxonam")
 
-    fayllar = st.file_uploader(
-        "PDF yoki Word kitoblarni yuklang",
-        type=["pdf", "docx"],
-        accept_multiple_files=True
-    )
+    if st.session_state.is_admin:
+        st.success("Admin paneli: kitob yuklash huquqi mavjud.")
 
-    if fayllar:
-        for fayl in fayllar:
-            manzil = KUTUBXONA / Path(fayl.name).name
+        fayllar = st.file_uploader(
+            "PDF yoki Word kitoblarni yuklang",
+            type=["pdf", "docx"],
+            accept_multiple_files=True
+        )
 
-            if not manzil.exists():
-                manzil.write_bytes(fayl.getbuffer())
-                st.success(f"{fayl.name} saqlandi.")
-            else:
-                st.info(f"{fayl.name} avval saqlangan.")
+        if fayllar:
+            for fayl in fayllar:
+                manzil = KUTUBXONA / Path(fayl.name).name
+
+                if not manzil.exists():
+                    manzil.write_bytes(fayl.getbuffer())
+                    st.success(f"{fayl.name} saqlandi.")
+                else:
+                    st.info(f"{fayl.name} avval saqlangan.")
+    else:
+        st.info(
+            "Kitoblarni yuklash faqat administrator uchun ochiq."
+        )
 
     st.divider()
     st.subheader("📖 Saqlangan kitoblar")
