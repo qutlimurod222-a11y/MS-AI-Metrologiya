@@ -5,6 +5,7 @@ from pypdf import PdfReader
 from docx import Document
 import re
 import hmac
+from supabase import create_client
 
 st.set_page_config(
     page_title="MS AI",
@@ -14,6 +15,15 @@ st.set_page_config(
 
 KUTUBXONA = Path("materials")
 KUTUBXONA.mkdir(exist_ok=True)
+
+# SUPABASE BILAN BOG'LANISH
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["secret_key"]
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 
 # Admin ma'lumotlarini xavfsiz Secrets bo'limidan olish
 try:
