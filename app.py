@@ -134,14 +134,40 @@ def sozlarni_ajrat(matn):
         )
     )
 
+# ==========================================
+# 6. SUPABASE'DAN YAXSHILANGAN QIDIRUV
+# ==========================================
 
-# ==========================================
-# 6. SUPABASE'DAN JAVOB QIDIRISH
-# ==========================================
+def sozlarni_normallashtir(matn):
+    sozlar = sozlarni_ajrat(matn)
+
+    natija = set()
+
+    for soz in sozlar:
+        # O'zbek tilidagi ko'p uchraydigan qo'shimchalar
+        # bo'yicha sodda normallashtirish
+        for qoshimcha in sorted([
+            "larning", "laridan", "lariga",
+            "lardan", "larga", "larni",
+            "ning", "dan", "dagi", "dagi",
+            "lik", "lari", "lar", "ga",
+            "ni", "da", "ta", "mi"
+        ], key=len, reverse=True):
+
+            if len(soz) > len(qoshimcha) + 3:
+                if soz.endswith(qoshimcha):
+                    soz = soz[:-len(qoshimcha)]
+                    break
+
+        if len(soz) > 1:
+            natija.add(soz)
+
+    return natija
+
 
 def javob_qidir(savol):
 
-    qidiruv_sozlari = sozlarni_ajrat(
+    qidiruv_sozlari = sozlarni_normallashtir(
         savol
     )
 
@@ -149,8 +175,8 @@ def javob_qidir(savol):
         "va", "yoki", "bu", "shu",
         "uchun", "nima", "qanday",
         "qaysi", "haqida", "bilan",
-        "ning", "dan", "ga", "ni",
-        "degani", "hisoblanadi"
+        "degani", "hisoblanadi",
+        "ham", "esa", "bir", "bor"
     }
 
     qidiruv_sozlari -= keraksiz_sozlar
@@ -158,7 +184,7 @@ def javob_qidir(savol):
     if not qidiruv_sozlari:
         return []
 
-    # Kitob matnlarini Supabase'dan olish
+    # Supabase'dan kitob parchalarini olish
     natija = (
         supabase.table("materials")
         .select(
@@ -177,28 +203,40 @@ def javob_qidir(savol):
         if not matn.strip():
             continue
 
-        matn_sozlari = sozlarni_ajrat(
+        matn_sozlari = sozlarni_normallashtir(
             matn
         )
 
         mos_sozlar = (
-            qidiruv_sozlari
-            & matn_sozlari
+            qidiruv_sozlari & matn_sozlari
         )
 
-        if mos_sozlar:
+        if not mos_sozlar:
+            continue
 
-            ball = (
-                len(mos_sozlar)
-                / len(qidiruv_sozlari)
-            )
+        # Moslik darajasini hisoblash
+        aniqlik = (
+            len(mos_sozlar)
+            / len(qidiruv_sozlari)
+        )
 
-            topilmalar.append({
-                "ball": ball,
-                "moslik": len(mos_sozlar),
-                **parcha
-            })
+        # Qo'shimcha moslik ballari
+        ball = aniqlik
 
+        if len(mos_sozlar) >= 2:
+            ball += 0.10
+
+        if len(mos_sozlar) >= 3:
+            ball += 0.10
+
+        topilmalar.append({
+            "ball": ball,
+            "aniqlik": aniqlik,
+            "moslik": len(mos_sozlar),
+            **parcha
+        })
+
+    # Eng mos parchalarni yuqoriga chiqarish
     topilmalar.sort(
         key=lambda x: (
             x["ball"],
@@ -209,9 +247,8 @@ def javob_qidir(savol):
 
     return [
         x for x in topilmalar
-        if x["ball"] >= 0.3
+        if x["aniqlik"] >= 0.3
     ][:5]
-
 
 # ==========================================
 # 7. ADMIN KIRISH TIZIMI
